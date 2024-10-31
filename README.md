@@ -5,6 +5,7 @@
   - Calibration code: Run the calibration code to try to get an appropriate Adelay (antenna delay) value for your use case. Then, put this Adelay value into anchor-setup.ino. Make sure to run and compile calibration code for both the tag and the anchor together.
     - For the purposes of this project, the Adelay value has already been set.
     - Adjusting the Adelay value affects the accuracy of the reading.
+    - Manual calibration: Adjust the Adelay in intervals of 5 or 10
 
 **IMPORTANT NOTICE:** For DW1000 library, refer to the section *I am not getting the results I expected*
    

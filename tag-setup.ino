@@ -1,6 +1,7 @@
 /*
 
 For ESP32 UWB Pro with Display
+Code for tag
 
 */
 
@@ -27,8 +28,8 @@ For ESP32 UWB Pro with Display
 #define I2C_SCL 5
 
 // WiFi problems/info
-const char* ssid = "ES_ASUS_78_2G_5G";      // Replace with your SSID
-const char* password = "engineeringscience"; // Replace with your password
+const char* ssid = "ssidTOREPLACE";      // Replace with your SSID
+const char* password = "passwordTOREPLACE"; // Replace with your password
 
 struct Link
 {
@@ -41,6 +42,10 @@ struct Link
 struct Link *uwb_data;
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+// Distance from anchors variables
+int distFromAnchor1;
+int distFromAnchor2;
 
 void setup()
 {
@@ -313,22 +318,21 @@ void display_uwb(struct Link *p)
         // sprintf(c, "%X:%.1f m %.1f", temp->anchor_addr, temp->range, temp->dbm);
         // sprintf(c, "%X:%.1f m", temp->anchor_addr, temp->range);
         sprintf(c, "%.1f m", temp->range);
-        display.setTextSize(2);
+        display.setTextSize(1);
         display.setCursor(0, row++ * 32); // Start at top-left corner
-        display.println(c);
+        display.print(temp->anchor_addr, HEX);
+        display.print("|");
+        display.print(c);
+        display.print("|");
+        sprintf(c, "%.1f dbm", temp->dbm);
+        display.print(c);
 
-        display.println("");
-
-        sprintf(c, "%.2f dbm", temp->dbm);
-        display.setTextSize(2);
-        display.println(c);
-
-        if (row >= 1)
-        {
-            break;
-        }
+        // if (row >= 1)
+        // {
+        //     break;
+        // }
     }
-    delay(100);
+    delay(500);
     display.display();
     return;
 }
@@ -349,4 +353,3 @@ void connectToWiFi() {
     Serial.println(WiFi.localIP());
     // End of WiFi code
 }
-

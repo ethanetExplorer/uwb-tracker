@@ -1,6 +1,7 @@
 /*
 
 For ESP32 UWB Pro with Display
+Code for anchor
 
 */
 
@@ -11,8 +12,10 @@ For ESP32 UWB Pro with Display
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define ANCHOR_ADD "86:17:5B:D5:A9:9A:E2:9C"
-
+// Anchor addresses: TO SWITCH BETWEEN
+// #define ANCHOR_ADD "86:17:5B:D5:A9:9A:E2:9C" // Anchor 1
+// #define ANCHOR_ADD "3F:98:1B:AB:AF:92:68" // Anchor 2
+#define ANCHOR_ADD "cc:88:dc:cf:86:86:95" // Anchor 3
 #define SPI_SCK 18
 #define SPI_MISO 19
 #define SPI_MOSI 23
@@ -24,8 +27,12 @@ For ESP32 UWB Pro with Display
 #define I2C_SDA 4
 #define I2C_SCL 5
 
+// const uint16_t ANCHOR_ID = 8471; 
+
+int connectedTags = 0;
+
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
-uint16_t Adelay = 16550;
+uint16_t Adelay = 16560;
 
 void setup()
 {
@@ -60,6 +67,7 @@ void setup()
 void loop()
 {
     DW1000Ranging.loop();
+    // updateDisplay();
 }
 
 void newRange()
@@ -72,6 +80,8 @@ void newRange()
     Serial.print("\t RX power: ");
     Serial.print(DW1000Ranging.getDistantDevice()->getRXPower());
     Serial.println(" dBm");
+    Serial.println("Connected tags: ");
+    // Serial.print(connectedTags);
 }
 
 void newBlink(DW1000Device *device)
@@ -79,17 +89,19 @@ void newBlink(DW1000Device *device)
     Serial.print("blink; 1 device added ! -> ");
     Serial.print(" short:");
     Serial.println(device->getShortAddress(), HEX);
+    connectedTags += 1;
 }
 
 void inactiveDevice(DW1000Device *device)
 {
     Serial.print("delete inactive device: ");
     Serial.println(device->getShortAddress(), HEX);
+    connectedTags -= 1;
 }
 
 void logoshow(void)
 {
-    display.clearDisplay();
+display.clearDisplay();
 
     display.setTextSize(2);              // Normal 1:1 pixel scale
     display.setTextColor(SSD1306_WHITE); // Draw white text
@@ -100,5 +112,21 @@ void logoshow(void)
     display.setTextSize(1);
     display.setCursor(0, 40); // Start at top-left corner
     display.println(ANCHOR_ADD);
+    display.display();
+}
+
+void updateDisplay() {
+    display.clearDisplay();
+
+    display.setTextSize(1);              // Normal 1:1 pixel scale
+    display.setTextColor(SSD1306_WHITE); // Draw white text
+    display.setCursor(0, 0);             // Start at top-left corner
+    display.println("Anchor ID:");
+    display.println(ANCHOR_ADD);
+    display.println("");
+
+    display.println("Connected devices:");
+    display.println(connectedTags);
+
     display.display();
 }

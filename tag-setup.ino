@@ -11,6 +11,8 @@ Code for tag
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <ArduinoJson.h>
+
 
 #define TAG_ADDR "7D:00:22:EA:82:60:3B:9B"
 
@@ -28,8 +30,14 @@ Code for tag
 #define I2C_SCL 5
 
 // WiFi problems/info
-const char* ssid = "ssidTOREPLACE";      // Replace with your SSID
-const char* password = "passwordTOREPLACE"; // Replace with your password
+const char* ssid = "Idk";     // Your Wi-Fi SSID
+const char* password = "werty123456"; // Your Wi-Fi password
+// const char* host = "192.168.1.132"; // IP address of the PC
+IPAddress server(192,168,195,211);
+const uint16_t port = 5000;          // Port to connect to
+unsigned long lastConnectAttempt = 0;
+const long connectInterval = 5000;  // Try every 5 seconds
+
 
 struct Link
 {
@@ -49,9 +57,6 @@ int distFromAnchor2;
 
 void setup()
 {
-
-    // connectToWiFi();
-
     Serial.begin(115200);
 
     Wire.begin(I2C_SDA, I2C_SCL);
@@ -87,18 +92,60 @@ void setup()
     // DW1000Ranging.startAsTag(TAG_ADDR, DW1000.MODE_LONGDATA_RANGE_ACCURACY);
 
     uwb_data = init_link();
+
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
+
+    Serial.println("Connected to WiFi");
+    Serial.println(WiFi.localIP());
+
 }
 
 long int runtime = 0;
 
 void loop()
 {
-    DW1000Ranging.loop();
-    if ((millis() - runtime) > 1000)
-    {
-        display_uwb(uwb_data);
-        runtime = millis();
+  // Update UWB ranging data and display periodically
+  DW1000Ranging.loop();
+  if ((millis() - runtime) > 1000)
+  {
+      display_uwb(uwb_data);
+      runtime = millis();
+  }
+  WiFiClient client;
+  //Serial.println(millis());
+  //Serial.println(lastConnectAttempt);
+  //Serial.println(connectInterval);
+  if ((millis() - lastConnectAttempt) > connectInterval) {
+    lastConnectAttempt = millis();
+    if (client.connect(server, port)) {
+        // Send data to the server
+
+        //Create a JSON object
+        StaticJsonDocument<200> doc;
+        doc["name"] = "I AM NOT ME";
+        doc["currentTrack"] = DW1000Ranging.getDistantDevice()->getShortAddress();  // Add the integer (value 10) to the JSON
+        doc["assignedtrack"] = DW1000Ranging.getDistantDevice()->getRange();
+
+        // Serialize the JSON object to a string
+        String jsonString;
+        serializeJson(doc, jsonString);
+
+        // Send the JSON string to the server
+        client.println(jsonString);
+        Serial.println("Message sent: " + jsonString);
+
+    } else {
+        Serial.println("Connection failed!");
     }
+    client.stop();
+  }
+
+  
 }
 
 void newRange()
@@ -337,19 +384,3 @@ void display_uwb(struct Link *p)
     return;
 }
 
-void connectToWiFi() {
-  // Start of WiFi code
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    Serial.println("\nConnecting to WiFi Network");
- 
-    while(WiFi.status() != WL_CONNECTED){
-        Serial.print(".");
-        delay(1500);
-    }
-    
-    Serial.println("\nConnected to the WiFi network");
-    Serial.print("Local ESP32 IP: ");
-    Serial.println(WiFi.localIP());
-    // End of WiFi code
-}

@@ -1,10 +1,3 @@
-/*
-
-For ESP32 UWB Pro with Display
-Code for tag
-
-*/
-
 #include <SPI.h>
 #include "DW1000Ranging.h"
 #include <WiFi.h>
@@ -13,8 +6,7 @@ Code for tag
 #include <Adafruit_SSD1306.h>
 #include <ArduinoJson.h>
 
-
-#define TAG_ADDR "7D:00:22:EA:82:60:3B:9B"
+#define TAG_ADDR "7D:00:22:EA:82:60:3B:9F"
 
 // #define DEBUG
 
@@ -29,15 +21,11 @@ Code for tag
 #define I2C_SDA 4
 #define I2C_SCL 5
 
-// WiFi problems/info
-const char* ssid = "Idk";     // Your Wi-Fi SSID
-const char* password = "werty123456"; // Your Wi-Fi password
-// const char* host = "192.168.1.132"; // IP address of the PC
-IPAddress server(192,168,195,211);
-const uint16_t port = 5000;          // Port to connect to
-unsigned long lastConnectAttempt = 0;
-const long connectInterval = 5000;  // Try every 5 seconds
-
+const char* ssid = "ssid";     // Your Wi-Fi SSID
+const char* password = "password"; // Your Wi-Fi password
+int maxRetries = 8;
+int retryCount = 0;
+unsigned long retryDelay = 5000;
 
 struct Link
 {
@@ -51,12 +39,9 @@ struct Link *uwb_data;
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
 
-// Distance from anchors variables
-int distFromAnchor1;
-int distFromAnchor2;
-
 void setup()
 {
+
     Serial.begin(115200);
 
     Wire.begin(I2C_SDA, I2C_SCL);
@@ -93,59 +78,34 @@ void setup()
 
     uwb_data = init_link();
 
-    WiFi.begin(ssid, password);
-
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Connecting to WiFi...");
+    // Attempt Wi-Fi Connection
+    while (WiFi.status() != WL_CONNECTED && retryCount < maxRetries) {
+      Serial.println("Attempting to connect to WiFi...");
+      WiFi.begin(ssid, password);  // Try connecting to WiFi
+      delay(retryDelay);
+      retryCount++;
     }
-
-    Serial.println("Connected to WiFi");
-    Serial.println(WiFi.localIP());
-
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("Connected to WiFi");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("WARNING: Wi-Fi not connected after multiple attempts");
+    }
 }
 
 long int runtime = 0;
 
 void loop()
 {
-  // Update UWB ranging data and display periodically
-  DW1000Ranging.loop();
-  if ((millis() - runtime) > 1000)
-  {
-      display_uwb(uwb_data);
-      runtime = millis();
-  }
-  WiFiClient client;
-  //Serial.println(millis());
-  //Serial.println(lastConnectAttempt);
-  //Serial.println(connectInterval);
-  if ((millis() - lastConnectAttempt) > connectInterval) {
-    lastConnectAttempt = millis();
-    if (client.connect(server, port)) {
-        // Send data to the server
-
-        //Create a JSON object
-        StaticJsonDocument<200> doc;
-        doc["name"] = "I AM NOT ME";
-        doc["currentTrack"] = DW1000Ranging.getDistantDevice()->getShortAddress();  // Add the integer (value 10) to the JSON
-        doc["assignedtrack"] = DW1000Ranging.getDistantDevice()->getRange();
-
-        // Serialize the JSON object to a string
-        String jsonString;
-        serializeJson(doc, jsonString);
-
-        // Send the JSON string to the server
-        client.println(jsonString);
-        Serial.println("Message sent: " + jsonString);
-
-    } else {
-        Serial.println("Connection failed!");
+    DW1000Ranging.loop();
+    if ((millis() - runtime) > 1000)
+    {
+        display_uwb(uwb_data);
+        if (WiFi.status() == WL_CONNECTED) {
+          send_data(uwb_data);
+        }
+        runtime = millis();
     }
-    client.stop();
-  }
-
-  
 }
 
 void newRange()
@@ -224,7 +184,7 @@ void add_link(struct Link *p, uint16_t addr)
 struct Link *find_link(struct Link *p, uint16_t addr)
 {
 #ifdef DEBUG
-    Serial.println("find_link");
+    // Serial.println("find_link");
 #endif
     if (addr == 0)
     {
@@ -257,7 +217,7 @@ struct Link *find_link(struct Link *p, uint16_t addr)
 void fresh_link(struct Link *p, uint16_t addr, float range, float dbm)
 {
 #ifdef DEBUG
-    Serial.println("fresh_link");
+    // Serial.println("fresh_link");
 #endif
     struct Link *temp = find_link(p, addr);
     if (temp != NULL)
@@ -325,7 +285,7 @@ void logoshow(void)
     display.setTextSize(2);              // Normal 1:1 pixel scale
     display.setTextColor(SSD1306_WHITE); // Draw white text
     display.setCursor(0, 0);             // Start at top-left corner
-    display.println(F("Makerfabs"));
+    display.println(F("Team DT6"));
 
     display.setTextSize(1);
     display.setCursor(0, 20); // Start at top-left corner
@@ -357,8 +317,8 @@ void display_uwb(struct Link *p)
         temp = temp->next;
 
         // Serial.println("Dev %d:%d m", temp->next->anchor_addr, temp->next->range);
-        Serial.println(temp->anchor_addr, HEX);
-        Serial.println(temp->range);
+        // Serial.println(temp->anchor_addr, HEX);
+        // Serial.println(temp->range);
 
         char c[30];
 
@@ -384,3 +344,42 @@ void display_uwb(struct Link *p)
     return;
 }
 
+void send_data(struct Link *p)
+{
+    WiFiClient client;
+    IPAddress server(172, 20, 10, 4);
+    const uint16_t port = 5001;
+
+    // Create a JSON document to hold an array
+    StaticJsonDocument<500> doc; // Increase size if needed
+    JsonArray dataArray = doc.to<JsonArray>();
+
+    struct Link *temp = p->next; // Skip the head node as it is an empty placeholder
+
+    // Loop through each anchor and add its data to the JSON array
+    while (temp != NULL)
+    {
+        // Create a temporary JSON object for this anchor
+        JsonObject anchorData = dataArray.createNestedObject();
+        anchorData["from"] = String(temp->anchor_addr, HEX);
+        anchorData["range"] = temp->range;
+        anchorData["rxPower"] = temp->dbm;
+
+        temp = temp->next;
+    }
+
+    // Serialize the whole array into a JSON string
+    String jsonString;
+    serializeJson(doc, jsonString);
+
+    // Now send the JSON array as one string
+    if (client.connect(server, port))
+    {
+        client.println(jsonString);
+        Serial.println("Data sent: " + jsonString);
+    }
+    else
+    {
+        Serial.println("Sending failed!");
+    }
+}

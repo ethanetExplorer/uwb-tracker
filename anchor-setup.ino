@@ -1,10 +1,3 @@
-/*
-
-For ESP32 UWB Pro with Display
-Code for anchor
-
-*/
-
 #include <SPI.h>
 #include "DW1000Ranging.h"
 
@@ -106,8 +99,8 @@ display.clearDisplay();
     display.setTextSize(2);              // Normal 1:1 pixel scale
     display.setTextColor(SSD1306_WHITE); // Draw white text
     display.setCursor(0, 0);             // Start at top-left corner
-    display.println(F("Makerfabs"));
-    display.println(F("UWB Anchor"));
+    display.println(F("Team DT6"));
+    display.println(F("Anchor"));
 
     display.setTextSize(1);
     display.setCursor(0, 40); // Start at top-left corner

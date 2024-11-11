@@ -5,6 +5,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <ArduinoJson.h>
+#include <math.h>
 
 #define TAG_ADDR "7D:00:22:EA:82:60:3B:9F"
 
@@ -13,7 +14,7 @@
 #define SPI_SCK 18
 #define SPI_MISO 19
 #define SPI_MOSI 23
-
+#define ALARM_PIN 2
 #define UWB_RST 27 // reset pin
 #define UWB_IRQ 34 // irq pin
 #define UWB_SS 21   // spi select pin
@@ -33,6 +34,7 @@ struct TrackSection {
     uint16_t anchor2_addr;
     float d_ij;  // Straight line distance between anchors
     float s_ij;  // Arc length for curved sections
+    bool isBooked;
 };
 
 // check section tolerance
@@ -40,9 +42,10 @@ float tolerance = 0.5f;
 
 // Example predefined track sections
 TrackSection trackSections[] = {
-    {0x88CC, 0x983F, 45.7, 45.7},  // Example values
-    {0x983F, 0x1786, 30.7, 30.7}   // Example values
+    {0x88CC, 0x983F, 1.0, 1.0, true},  // Example values
+    {0x983F, 0x1786, 1.0, 1.0, false}   // Example values
 };
+
 
 // Distance measurement data structure
 struct Link
@@ -122,6 +125,7 @@ void loop()
           send_data(check_section(generate_raw_json(uwb_data)));
           // send_data(generate_raw_json(uwb_data));
         }
+        check_booking(check_section(generate_raw_json(uwb_data)));
         runtime = millis();
     }
 }
@@ -463,21 +467,32 @@ String check_section(const String &jsonData) {
         if (foundAnchor1 && foundAnchor2) {
             float d_ij = trackSections[i].d_ij;
             float s_ij = trackSections[i].s_ij;
+            float dT_ij = dT_i + dT_j;
+
+            float theta = acos(((d_ij * d_ij) - (dT_i * dT_i) - (dT_j * dT_j)) / (-2 * dT_i * dT_j));
+            // calculated estimated arc length
+            float sT_ij = sqrt((d_ij * d_ij) / (2 - (2 * cos(theta))));
+
             // Triangle inequality check
-            if (((dT_i + dT_j) >= (d_ij + tolerance)) || ((dT_i + dT_j) >= (d_ij - tolerance))) {
+            if (dT_ij >= (d_ij - tolerance)) {
               if (d_ij == s_ij) {
-                if (((dT_i + dT_j) >= (d_ij - tolerance)) || ((dT_i + dT_j) <= (d_ij + tolerance))) {
+                if ((dT_ij >= (d_ij - tolerance)) && (dT_ij <= (d_ij + tolerance))) {
                 // Both the straight check and the triangle inequality check pass
-                JsonObject section = possibleSections.createNestedObject();
-                section["anchor1"] = String(trackSections[i].anchor1_addr, HEX);
-                section["anchor2"] = String(trackSections[i].anchor2_addr, HEX);
+                  JsonObject section = possibleSections.createNestedObject();
+                  section["anchor1"] = String(trackSections[i].anchor1_addr, HEX);
+                  section["anchor2"] = String(trackSections[i].anchor2_addr, HEX);
+                  section["isBooked"] = trackSections[i].isBooked;
                 }
               } else if (s_ij > d_ij) {
-                if ((d_ij - tolerance) < (dT_i + dT_j) && (dT_i + dT_j) < (s_ij + tolerance)) {
+                if (((d_ij - tolerance) <= dT_ij) && (dT_ij < (s_ij + tolerance))) {
                 // Both the curved check and the triangle inequality check pass
-                JsonObject section = possibleSections.createNestedObject();
-                section["anchor1"] = String(trackSections[i].anchor1_addr, HEX);
-                section["anchor2"] = String(trackSections[i].anchor2_addr, HEX);
+                  // Approximate curve check
+                  if ((sT_ij >= (s_ij - tolerance)) && (sT_ij <= (s_ij + tolerance))) {
+                    JsonObject section = possibleSections.createNestedObject();
+                    section["anchor1"] = String(trackSections[i].anchor1_addr, HEX);
+                    section["anchor2"] = String(trackSections[i].anchor2_addr, HEX);
+                    section["isBooked"] = trackSections[i].isBooked;
+                  }
                 }
               }
             }
@@ -488,4 +503,65 @@ String check_section(const String &jsonData) {
     String jsonOutput;
     serializeJson(outputDoc, jsonOutput);
     return jsonOutput;
+}
+
+void sound_alarm(void) {
+  digitalWrite(ALARM_PIN, HIGH);
+  delay(500);
+  digitalWrite(ALARM_PIN, LOW);
+  delay(500);
+  digitalWrite(ALARM_PIN, HIGH);
+  delay(500);
+  digitalWrite(ALARM_PIN, LOW);
+}
+
+void display_warning(void) {
+    display.clearDisplay();
+
+    display.setTextSize(2);              // Normal 1:1 pixel scale
+    display.setTextColor(SSD1306_WHITE); // Draw white text
+    display.setCursor(0, 0);             // Start at top-left corner
+    display.println(F("Warning"));
+
+    display.setTextSize(1);
+    display.setCursor(0, 20); // Start at top-left corner
+    display.println(F("Outside booked zones"));
+    display.display();
+    delay(2000);
+}
+
+void check_booking(const String &jsonData) {
+    // Parse the JSON output from check_section
+    StaticJsonDocument<500> doc;
+    DeserializationError error = deserializeJson(doc, jsonData);
+    if (error) {
+        Serial.print("JSON parse error: ");
+        Serial.println(error.c_str());
+        return;
+    }
+
+    // Extract the array of possible sections from the parsed JSON
+    JsonArray possibleSections = doc.as<JsonArray>();
+
+    // Loop through the possible sections to check if they are booked
+    bool alarmTriggered = false;
+    for (JsonObject section : possibleSections) {
+        // Extract anchor addresses for this section
+        String anchor1Str = section["anchor1"];
+        String anchor2Str = section["anchor2"];
+        uint16_t anchor1Addr = strtol(anchor1Str.c_str(), nullptr, 16);
+        uint16_t anchor2Addr = strtol(anchor2Str.c_str(), nullptr, 16);
+        bool isBooked = section["isBooked"];
+
+        // Check if this section is not booked
+        if (!isBooked) {
+            // If the section is not booked, sound the alarm and display the warning
+            if (!alarmTriggered) {
+                sound_alarm();
+                alarmTriggered = true; // Ensure alarm is triggered only once
+            }
+            display_warning();
+            break; // Exit after the first unbooked section is found
+        }
+    }
 }

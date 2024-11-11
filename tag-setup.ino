@@ -14,13 +14,14 @@
 #define SPI_SCK 18
 #define SPI_MISO 19
 #define SPI_MOSI 23
-#define ALARM_PIN 2
 #define UWB_RST 27 // reset pin
 #define UWB_IRQ 34 // irq pin
 #define UWB_SS 21   // spi select pin
 
 #define I2C_SDA 4
 #define I2C_SCL 5
+
+#define ALARM_PIN 2
 
 const char* ssid = "ssid";     // Your Wi-Fi SSID
 const char* password = "password"; // Your Wi-Fi password
@@ -63,6 +64,8 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 void setup()
 {
     Serial.begin(115200);
+    
+    sound_alarm();
 
     Wire.begin(I2C_SDA, I2C_SCL);
     delay(1000);
@@ -469,9 +472,9 @@ String check_section(const String &jsonData) {
             float s_ij = trackSections[i].s_ij;
             float dT_ij = dT_i + dT_j;
 
-            float theta = acos(((d_ij * d_ij) - (dT_i * dT_i) - (dT_j * dT_j)) / (-2 * dT_i * dT_j));
+            float theta = (2 * PI) - (2 * acos(((d_ij * d_ij) - (dT_i * dT_i) - (dT_j * dT_j)) / (-2 * dT_i * dT_j)));
             // calculated estimated arc length
-            float sT_ij = sqrt((d_ij * d_ij) / (2 - (2 * cos(theta))));
+            float sT_ij = (sqrt((d_ij * d_ij) / (2 - (2 * cos(theta))))) * theta;
 
             // Triangle inequality check
             if (dT_ij >= (d_ij - tolerance)) {

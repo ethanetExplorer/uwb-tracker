@@ -14,6 +14,7 @@
 #define SPI_SCK 18
 #define SPI_MISO 19
 #define SPI_MOSI 23
+
 #define UWB_RST 27 // reset pin
 #define UWB_IRQ 34 // irq pin
 #define UWB_SS 21   // spi select pin
@@ -38,15 +39,11 @@ struct TrackSection {
     bool isBooked;
 };
 
-// check section tolerance
-float tolerance = 0.5f;
-
 // Example predefined track sections
 TrackSection trackSections[] = {
     {0x88CC, 0x983F, 1.0, 1.0, true},  // Example values
     {0x983F, 0x1786, 1.0, 1.0, false}   // Example values
 };
-
 
 // Distance measurement data structure
 struct Link
@@ -476,10 +473,14 @@ String check_section(const String &jsonData) {
             // calculated estimated arc length
             float sT_ij = (sqrt((d_ij * d_ij) / (2 - (2 * cos(theta))))) * theta;
 
+            // set tolerance as 2 percent of defined straight and arc length
+            float straightTolerance = 0.02 * d_ij;
+            float arcTolerance = 0.02 * s_ij;
+
             // Triangle inequality check
-            if (dT_ij >= (d_ij - tolerance)) {
+            if (dT_ij >= (d_ij - straightTolerance)) {
               if (d_ij == s_ij) {
-                if ((dT_ij >= (d_ij - tolerance)) && (dT_ij <= (d_ij + tolerance))) {
+                if ((dT_ij >= (d_ij - straightTolerance)) && (dT_ij <= (d_ij + straightTolerance))) {
                 // Both the straight check and the triangle inequality check pass
                   JsonObject section = possibleSections.createNestedObject();
                   section["anchor1"] = String(trackSections[i].anchor1_addr, HEX);
@@ -487,10 +488,10 @@ String check_section(const String &jsonData) {
                   section["isBooked"] = trackSections[i].isBooked;
                 }
               } else if (s_ij > d_ij) {
-                if (((d_ij - tolerance) <= dT_ij) && (dT_ij < (s_ij + tolerance))) {
+                if (((d_ij - straightTolerance) <= dT_ij) && (dT_ij < (s_ij + arcTolerance))) {
                 // Both the curved check and the triangle inequality check pass
                   // Approximate curve check
-                  if ((sT_ij >= (s_ij - tolerance)) && (sT_ij <= (s_ij + tolerance))) {
+                  if ((sT_ij >= (s_ij - arcTolerance)) && (sT_ij <= (s_ij + arcTolerance))) {
                     JsonObject section = possibleSections.createNestedObject();
                     section["anchor1"] = String(trackSections[i].anchor1_addr, HEX);
                     section["anchor2"] = String(trackSections[i].anchor2_addr, HEX);

@@ -25,7 +25,7 @@
 int connectedTags = 0;
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
-uint16_t Adelay = 15570;
+uint16_t Adelay = 16560;
 
 void setup()
 {

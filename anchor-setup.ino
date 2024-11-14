@@ -6,9 +6,12 @@
 #include <Adafruit_SSD1306.h>
 
 // Anchor addresses: TO SWITCH BETWEEN
-// #define ANCHOR_ADD "86:17:5B:D5:A9:9A:E2:9C" // Anchor 1
+#define ANCHOR_ADD "86:17:5B:D5:A9:9A:E2:9C" // Anchor 1
 // #define ANCHOR_ADD "3F:98:1B:AB:AF:92:68" // Anchor 2
-#define ANCHOR_ADD "cc:88:dc:cf:86:86:95" // Anchor 3
+// #define ANCHOR_ADD "cc:88:dc:cf:86:86:95" // Anchor 3
+
+#define ANCHOR_ID 1
+
 #define SPI_SCK 18
 #define SPI_MISO 19
 #define SPI_MOSI 23
@@ -20,12 +23,10 @@
 #define I2C_SDA 4
 #define I2C_SCL 5
 
-// const uint16_t ANCHOR_ID = 8471; 
-
 int connectedTags = 0;
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
-uint16_t Adelay = 16560;
+uint16_t Adelay = 16590;
 
 void setup()
 {
@@ -100,9 +101,12 @@ display.clearDisplay();
     display.setTextColor(SSD1306_WHITE); // Draw white text
     display.setCursor(0, 0);             // Start at top-left corner
     display.println(F("Team DT6"));
-    display.println(F("Anchor"));
 
     display.setTextSize(1);
+
+    display.println(F("Anchor"));
+    display.print(ANCHOR_ID);
+
     display.setCursor(0, 40); // Start at top-left corner
     display.println(ANCHOR_ADD);
     display.display();

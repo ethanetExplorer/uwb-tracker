@@ -23,9 +23,11 @@
 
 #define ALARM_PIN 0
 
-const char *ssid = "ssid";          // Your Wi-Fi SSID
-const char *password = "password";  // Your Wi-Fi password
-int maxRetries = 8;
+// const char *ssid = "s_15";          // Your Wi-Fi SSID
+// const char *password = "tanyugin";  // Your Wi-Fi password
+const char *ssid = "TiPhone";                 // Your Wi-Fi SSID
+const char *password = "EthanetTheExplorer";  // Your Wi-Fi password
+int maxRetries = 4;
 int retryCount = 0;
 unsigned long retryDelay = 5000;
 
@@ -45,8 +47,8 @@ struct TrackSection {
 
 // Example predefined track sections
 TrackSection trackSections[] = {
-  { 0x88CC, 0x983F, 45.7, 45.7, true },  // Example values
-  { 0x983F, 0x1786, 31.0, 31.0, false }  // Example values
+  { 0x88CC, 0x983F, 120.0, 20.0, true },  // Example values
+  { 0x983F, 0x1786, 20.0, 20.0, false }  // Example values
 };
 
 AnchorData detectedAnchors[10] = {};
@@ -54,7 +56,7 @@ AnchorData detectedAnchors[10] = {};
 TrackSection validTrackSections[10]{};
 
 TrackSection bookedTrackSections[]{
-  { 0x88CC, 0x983F, 45.7, 45.7, true }
+  { 0x88CC, 0x983F, 20.0, 20.0, true }
 };
 
 struct Link {
@@ -381,64 +383,6 @@ void get_detected_anchors(struct Link *p) {
   Serial.println(index);
 }
 
-// void get_valid_sections(void) {
-//   int numDetectedAnchors = sizeof(detectedAnchors) / sizeof(detectedAnchors[0]);
-
-//   int index = 0;  // Track index for validTrackSections
-
-//   // Loop through each predefined track section to see if it matches detected anchors
-//   for (int i = 0; i < sizeof(trackSections) / sizeof(trackSections[0]); i++) {
-//     bool foundAnchor1 = false, foundAnchor2 = false;
-//     float dT_i = 0, dT_j = 0;
-
-//     // Loop through detected anchors to find matches with track section anchors
-//     for (int j = 0; j < numDetectedAnchors; j++) {
-//       if (detectedAnchors[j].anchor_addr == trackSections[i].anchor1_addr) {
-//         foundAnchor1 = true;
-//         dT_i = detectedAnchors[j].range;
-//       }
-//       if (detectedAnchors[j].anchor_addr == trackSections[i].anchor2_addr) {
-//         foundAnchor2 = true;
-//         dT_j = detectedAnchors[j].range;
-//       }
-//     }
-
-//     // If both anchors for this section are detected, proceed with distance checks
-//     if (foundAnchor1 && foundAnchor2) {
-//       float d_ij = trackSections[i].d_ij;
-//       float s_ij = trackSections[i].s_ij;
-//       float dT_ij = dT_i + dT_j;
-
-//       float theta = (2 * PI) - (2 * acos(((d_ij * d_ij) - (dT_i * dT_i) - (dT_j * dT_j)) / (-2 * dT_i * dT_j)));
-//       float sT_ij = (sqrt((d_ij * d_ij) / (2 - (2 * cos(theta))))) * theta;
-
-//       // Set tolerances for straight and curved section checks
-//       float straightTolerance = 0.02 * d_ij;
-//       float arcTolerance = 0.02 * s_ij;
-
-//       // Triangle inequality check
-//       if (dT_ij >= (d_ij - straightTolerance)) {
-//         // Check if section is straight
-//         if (d_ij == s_ij) {
-//           if ((dT_ij >= (d_ij - straightTolerance)) && (dT_ij <= (d_ij + straightTolerance))) {
-//             // Section is straight and matches
-//             validTrackSections[index++] = trackSections[i];
-//           }
-//         }
-//         // Check if section is curved
-//         else if (s_ij > d_ij) {
-//           if ((dT_ij >= (d_ij - straightTolerance)) && (dT_ij < (s_ij + arcTolerance)) && (sT_ij >= (s_ij - arcTolerance)) && (sT_ij <= (s_ij + arcTolerance))) {
-//             // Section is curved and matches
-//             validTrackSections[index++] = trackSections[i];
-//           }
-//         }
-//       }
-//     }
-//   }
-//   Serial.print("Total Valid Sections: ");
-//   Serial.println(index);
-// }
-
 void get_valid_sections(void) {
   int detectedAnchorCount = 0;
 
@@ -476,7 +420,8 @@ void get_valid_sections(void) {
 
       // Check if section is straight or is at start of a curved section thus can use the straight line check
       if ((d_ij == s_ij) || (dT_i == 0) || (dT_j == 0)) {
-        float straightTolerance = 0.05 * d_ij;
+        // float straightTolerance = 0.05 * d_ij; // Corridor testing
+        float straightTolerance = 0.1 * d_ij; // Indoor testing
         if (dT_ij >= (d_ij - straightTolerance) && dT_ij <= (d_ij + straightTolerance)) {
           validTrackSections[index++] = trackSections[i];
         }
@@ -502,7 +447,7 @@ void get_valid_sections(void) {
 
 void send_calculated_data() {
   WiFiClient client;
-  IPAddress server(172, 20, 10, 4);
+  IPAddress server(172, 20, 10, 2);
   const uint16_t port = 5001;
 
   // Create a JSON document to hold an array
@@ -528,7 +473,7 @@ void send_calculated_data() {
   String jsonString;
   serializeJson(doc, jsonString);
 
-  // Send the JSON array as one string if connected
+  // Send the JSON array as one string if connected [PROBLEMATIC CODE HERE]
   if (client.connect(server, port)) {
     client.println(jsonString);
     Serial.println("Data sent: " + jsonString);
